@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Explorer | Ayush System</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- Tailwind for Profile -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- CORE STYLES (Three.js & UI) --- */
+        :root {
+            --primary: #4f46e5;
+            --accent: #06b6d4;
+            --glass: rgba(10, 10, 10, 0.85);
+            --border: rgba(255, 255, 255, 0.15);
+            --text: #e2e8f0;
+            
+            /* Profile Page Variables */
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Exo 2', sans-serif;
+            color: var(--text);
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* --- PROFILE OVERLAY STYLES --- */
+        #profile-overlay {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 2000; /* On top of everything */
+            background: radial-gradient(circle at 50% 120%, #4a1c03 0%, #1a0b00 40%, #000000 100%);
+            
+            /* Transition States */
+            opacity: 0;
+            transform: scale(1.2); /* Start slightly zoomed in for entry effect */
+            transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+            
+            font-family: 'Inter', sans-serif;
+            overflow-y: auto;
+        }
+
+        /* Active State (Visible) */
+        #profile-overlay.active {
+            display: flex;
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Zoom Out State (Exiting) */
+        #profile-overlay.zoomed-out {
+            opacity: 0;
+            transform: scale(0.01); /* Shrink to nothing */
+            transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+        }
+
+        /* Particle Canvas for Profile */
+        #particles-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Profile Glass Panel */
+        .glass-panel-profile {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            border-radius: 24px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .glass-panel-profile:hover {
+            box-shadow: 0 12px 40px 0 rgba(255, 140, 0, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Text Gradients */
+        .text-gradient-gold {
+            background: linear-gradient(135deg, #FFF 0%, #FFD700 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Liquid Button */
+        .btn-liquid {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s ease;
+            cursor: pointer;
+        }
+        
+        .btn-liquid::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: 0.5s;
+        }
+        
+        .btn-liquid:hover::before { left: 100%; }
+        .btn-liquid:hover {
+            transform: scale(1.05);
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 20px rgba(255, 165, 0, 0.4);
+            border-color: #FFD700;
+        }
+
+        .profile-glow {
+            box-shadow: 0 0 30px rgba(255, 140, 0, 0.3);
+            transition: all 0.5s ease;
+        }
+        .profile-glow:hover {
+            box-shadow: 0 0 50px rgba(255, 140, 0, 0.6);
+            transform: scale(1.02);
+        }
+
+        /* --- 3D UI STYLES --- */
+        /* Flash Overlay */
+        #warp-flash {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: white;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        /* Galaxy UI Container */
+        #ui-container {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            z-index: 10;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            perspective: 1000px;
+            transition: opacity 0.5s, transform 0.5s;
+        }
+
+        .preset-card {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            padding: 15px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            flex: 1;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+            color: white; /* Ensure text is visible over tailwind reset */
+        }
+        
+        .preset-card:hover {
+            transform: translateY(-10px) scale(1.05);
+            border-color: var(--accent);
+            box-shadow: 0 10px 30px rgba(6, 182, 212, 0.2);
+        }
+
+        .preset-card.active {
+            border-color: var(--primary);
+            background: rgba(79, 70, 229, 0.2);
+            box-shadow: 0 0 20px rgba(79, 70, 229, 0.4);
+        }
+
+        .preset-card h3 { margin: 0 0 5px 0; font-size: 1rem; color: #fff; }
+        .preset-card p { margin: 0; font-size: 0.75rem; color: #94a3b8; }
+
+        /* Navigation Buttons */
+        #enter-system-btn, #back-btn {
+            position: fixed;
+            padding: 12px 24px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 20;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+            font-family: 'Exo 2', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        #enter-system-btn { top: 30px; right: 30px; }
+        #back-btn { top: 30px; left: 30px; display: none; }
+
+        #enter-system-btn:hover, #back-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+            transform: scale(1.05);
+        }
+
+        /* Planet Menu */
+        #planet-nav-container {
+            position: fixed;
+            top: 30px; right: 30px;
+            z-index: 30;
+            display: none;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        #planet-menu-trigger {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.2), inset 0 0 10px rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+            backdrop-filter: blur(8px);
+        }
+
+        #planet-menu-trigger:hover {
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+            border-color: var(--accent);
+        }
+
+        /* 3D Glossy Sphere Icon */
+        .mini-planet {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, var(--accent), #000);
+            position: relative;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
+            overflow: hidden;
+            animation: floatOrb 3s ease-in-out infinite;
+        }
+
+        .mini-planet::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 200%; height: 100%;
+            background: repeating-linear-gradient(110deg, transparent 0, transparent 5px, rgba(0,0,0,0.3) 5px, rgba(0,0,0,0.3) 10px);
+            animation: planetSpin 6s linear infinite;
+        }
+
+        .mini-planet::after {
+            content: ''; position: absolute; top: 15%; left: 15%; width: 35%; height: 20%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0));
+            filter: blur(1px);
+        }
+
+        @keyframes planetSpin { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes floatOrb { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+        #planet-list {
+            margin-top: 15px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            width: 200px;
+            backdrop-filter: blur(15px);
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .planet-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px; border-radius: 8px; cursor: pointer;
+            color: var(--text); transition: background 0.2s;
+            font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .planet-item:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .planet-icon-small {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, var(--planet-color), #000);
+            box-shadow: inset 2px 2px 4px rgba(255,255,255,0.4), 0 0 6px var(--planet-color);
+            position: relative; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;
+        }
+        .planet-icon-small::after {
+            content: ''; position: absolute; top: 15%; left: 15%; width: 40%; height: 25%;
+            border-radius: 50%; background: linear-gradient(135deg, rgba(255,255,255,0.9), transparent); filter: blur(0.5px);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #ui-container { flex-wrap: wrap; bottom: 20px; }
+            .preset-card { flex: 1 1 40%; min-width: 120px; }
+            #enter-system-btn { top: 20px; right: 20px; padding: 10px 15px; font-size: 0.8rem; }
+            #planet-nav-container { top: 20px; right: 20px; }
+            #planet-menu-trigger { width: 50px; height: 50px; }
+            .mini-planet { width: 24px; height: 24px; }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 3D Scene Layer -->
+    <div id="canvas-container"></div>
+    <div id="warp-flash"></div>
+    
+    <!-- Galaxy UI -->
+    <button id="enter-system-btn"><i class="fas fa-rocket"></i> Move to Ayush System</button>
+    <div id="ui-container">
+        <div class="preset-card active" onclick="selectPreset('spiral')">
+            <h3>Spiral</h3>
+            <p>Classic Milky Way Structure</p>
+        </div>
+        <div class="preset-card" onclick="selectPreset('dense')">
+            <h3>Core Cluster</h3>
+            <p>Ancient dense star field</p>
+        </div>
+        <div class="preset-card" onclick="selectPreset('chaos')">
+            <h3>Irregular</h3>
+            <p>Post-collision chaos</p>
+        </div>
+    </div>
+
+    <!-- Solar System UI (3D Navigation) -->
+    <button id="back-btn"><i class="fas fa-arrow-left"></i> Back to Galaxy</button>
+    
+    <div id="planet-nav-container">
+        <div id="planet-menu-trigger" onclick="togglePlanetMenu()">
+            <div class="mini-planet"></div>
+        </div>
+        <div id="planet-list">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+
+    <!-- Profile Overlay (The Webpage) -->
+    <section id="profile-overlay" class="flex-col items-center justify-center">
+        <!-- Background Orbs -->
+        <div style="position:fixed; width:100%; height:100%; z-index:-1; overflow:hidden">
+            <div style="position:absolute; top:-10%; left:-10%; width:50vw; height:50vw; background:radial-gradient(circle, #ff5e00, transparent); border-radius:50%; filter:blur(80px); opacity:0.6; animation:float 20s infinite ease-in-out;"></div>
+            <div style="position:absolute; bottom:-20%; right:-10%; width:60vw; height:60vw; background:radial-gradient(circle, #ffaa00, transparent); border-radius:50%; filter:blur(80px); opacity:0.6; animation:float 20s infinite ease-in-out; animation-delay:-5s;"></div>
+        </div>
+
+        <!-- Particle Canvas -->
+        <canvas id="particles-canvas"></canvas>
+
+        <main class="relative z-10 w-full min-h-screen flex flex-col items-center justify-center p-4">
+            <div class="w-full max-w-5xl mx-auto flex flex-col items-center gap-8">
+                
+                <!-- Header -->
+                <div class="text-center mb-6">
+                    <div class="inline-flex items-center justify-center p-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-4 hover:bg-white/10 transition-colors cursor-default">
+                        <span class="px-3 py-1 text-xs font-medium text-orange-200 tracking-widest uppercase">🌞 Core Identity</span>
+                    </div>
+                    <h1 class="text-5xl md:text-7xl font-bold tracking-tighter text-gradient-gold drop-shadow-lg">
+                        SUN
+                    </h1>
+                </div>
+
+                <!-- Glass Card -->
+                <div class="glass-panel-profile p-1 rounded-[40px] w-full relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-orange-400/50 to-transparent opacity-50"></div>
+
+                    <div class="bg-black/20 rounded-[36px] p-6 md:p-10 backdrop-blur-sm relative z-10">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+                            
+                            <!-- Image -->
+                            <div class="md:col-span-4 flex flex-col items-center">
+                                <div class="relative w-48 h-48 md:w-56 md:h-56">
+                                    <div class="absolute inset-0 rounded-full border-2 border-orange-500/30 animate-pulse"></div>
+                                    <img 
+                                        src="https://image2url.com/images/1766003949987-01fa1338-4cf6-451d-b51d-e5bb704694e7.jpg" 
+                                        alt="Ayush" 
+                                        class="w-full h-full object-cover rounded-full profile-glow border-4 border-white/10"
+                                        onerror="this.src='https://ui-avatars.com/api/?name=Ayush&background=random&size=256'"
+                                    >
+                                    <div class="absolute bottom-2 right-2 w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center border-2 border-black">
+                                        <span class="text-white text-xs">✨</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Info -->
+                            <div class="md:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                                <div class="glass-panel-profile p-6 flex flex-col justify-center h-full hover:-translate-y-1 duration-300">
+                                    <h3 class="text-xs font-semibold text-orange-300 uppercase tracking-wider mb-2">Name</h3>
+                                    <p class="text-3xl font-bold text-white tracking-tight">Ayush</p>
+                                </div>
+                                <div class="glass-panel-profile p-6 flex flex-col justify-center h-full hover:-translate-y-1 duration-300">
+                                    <h3 class="text-xs font-semibold text-orange-300 uppercase tracking-wider mb-2">Identity</h3>
+                                    <p class="text-sm text-gray-200 leading-relaxed">
+                                        A Class 12 <span class="text-orange-200 font-medium">Amity student</span> passionate about computer science, blending robotics, cooking, and fashion design.
+                                    </p>
+                                </div>
+                                <div class="md:col-span-2 glass-panel-profile p-6 hover:-translate-y-1 duration-300">
+                                    <h3 class="text-xs font-semibold text-orange-300 uppercase tracking-wider mb-2">Short Intro</h3>
+                                    <p class="text-sm md:text-base text-gray-200 leading-relaxed">
+                                        Hi, I’m Ayush. Driven by a strong will for precise and accurate learning. I love exploring the creative–technical space where <span class="text-orange-200">robotics, cooking, and fashion</span> intersect.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Button -->
+                        <div class="mt-8 flex justify-center">
+                            <button id="start-exploring-btn" class="btn-liquid group px-8 py-4 rounded-full flex items-center gap-3 text-white font-medium text-lg">
+                                <span>Start Exploring</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <footer class="mt-12 text-white/30 text-xs">
+                © 2024 Ayush Portfolio. Precision & Creativity.
+            </footer>
+        </main>
+    </section>
+
+    <script>
+        // --- State Management ---
+        const STATE = {
+            GALAXY: 'galaxy',
+            TRANSITION: 'transition',
+            SOLAR: 'solar',
+            PROFILE: 'profile'
+        };
+        let currentState = STATE.GALAXY;
+        let trackedObject = null;
+        let isMenuOpen = false;
+
+        // --- Configuration Presets ---
+        const presets = {
+            spiral: { count: 80000, size: 0.01, radius: 5, branches: 3, spin: 1, randomness: 0.2, insideColor: '#ff6030', outsideColor: '#1b3984' },
+            dense:  { count: 100000, size: 0.008, radius: 4, branches: 5, spin: 2, randomness: 1.5, insideColor: '#ffaa00', outsideColor: '#ff0000' },
+            chaos:  { count: 50000, size: 0.02, radius: 7, branches: 2, spin: 0.2, randomness: 2, insideColor: '#ff00ff', outsideColor: '#0000ff' }
+        };
+
+        // --- Scene Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- Globals ---
+        let galaxyPoints = null;
+        let coreHitbox = null;
+        let solarSystemGroup = new THREE.Group();
+        let planets = []; 
+        let sunObj = null; 
+        let asteroidBelts = []; // Array to store multiple belts
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isHoveringCore = false;
+
+        // --- Textures ---
+        const getParticleTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(16,16,0,16,16,16);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.2, 'rgba(255,255,255,0.8)');
+            grad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad; ctx.fillRect(0,0,32,32);
+            return new THREE.Texture(canvas);
+        };
+        const particleTexture = getParticleTexture();
+        particleTexture.needsUpdate = true;
+
+        // --- Galaxy Generator ---
+        function createGalaxy(type) {
+            if (galaxyPoints) {
+                galaxyPoints.geometry.dispose();
+                galaxyPoints.material.dispose();
+                scene.remove(galaxyPoints);
+            }
+            if (coreHitbox) scene.remove(coreHitbox);
+
+            const params = presets[type];
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(params.count * 3);
+            const colors = new Float32Array(params.count * 3);
+            const colorInside = new THREE.Color(params.insideColor);
+            const colorOutside = new THREE.Color(params.outsideColor);
+
+            for (let i = 0; i < params.count; i++) {
+                const i3 = i * 3;
+                const radius = Math.random() * params.radius;
+                const spinAngle = radius * params.spin;
+                const branchAngle = (i % params.branches) / params.branches * Math.PI * 2;
+                const randomX = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * params.randomness * radius;
+                const randomY = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * params.randomness * radius;
+                const randomZ = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * params.randomness * radius;
+
+                positions[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
+                positions[i3 + 1] = randomY;
+                positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+                const mixedColor = colorInside.clone();
+                mixedColor.lerp(colorOutside, radius / params.radius);
+                colors[i3] = mixedColor.r; colors[i3 + 1] = mixedColor.g; colors[i3 + 2] = mixedColor.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({ size: params.size, sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true, map: particleTexture, transparent: true });
+            galaxyPoints = new THREE.Points(geometry, material);
+            scene.add(galaxyPoints);
+
+            const hitGeo = new THREE.SphereGeometry(6.0, 16, 16);
+            const hitMat = new THREE.MeshBasicMaterial({ visible: false }); 
+            coreHitbox = new THREE.Mesh(hitGeo, hitMat);
+            scene.add(coreHitbox);
+
+            camera.position.set(4, 3, 6);
+            controls.target.set(0, 0, 0);
+            controls.minDistance = 2;
+            controls.maxDistance = 20;
+        }
+
+        // --- Helper Function for Asteroid Belts ---
+        function createAsteroidBelt(innerRadius, outerRadius, count, size, colorHex) {
+            const asteroidGeo = new THREE.BufferGeometry();
+            const astPos = new Float32Array(count * 3);
+            
+            for(let i=0; i<count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                // Distribute uniformly in the ring area
+                const r = Math.sqrt(Math.random() * (outerRadius*outerRadius - innerRadius*innerRadius) + innerRadius*innerRadius);
+                const spreadY = (Math.random() - 0.5) * 1.5; // Slight vertical spread
+                
+                astPos[i*3] = Math.cos(angle) * r;
+                astPos[i*3+1] = spreadY;
+                astPos[i*3+2] = Math.sin(angle) * r;
+            }
+            
+            asteroidGeo.setAttribute('position', new THREE.BufferAttribute(astPos, 3));
+            const asteroidMat = new THREE.PointsMaterial({ 
+                color: colorHex, 
+                size: size,
+                transparent: true,
+                opacity: 0.8
+            });
+            const belt = new THREE.Points(asteroidGeo, asteroidMat);
+            return belt;
+        }
+
+        // --- Solar System Generator ---
+        function createSolarSystem() {
+            scene.remove(solarSystemGroup);
+            solarSystemGroup = new THREE.Group();
+            planets = [];
+            asteroidBelts = [];
+
+            // Sun
+            const sunGeo = new THREE.SphereGeometry(2, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd00 }); 
+            sunObj = new THREE.Mesh(sunGeo, sunMat);
+            const sunLight = new THREE.PointLight(0xffffff, 2, 100);
+            sunObj.add(sunLight);
+            
+            const spriteMat = new THREE.SpriteMaterial({ map: particleTexture, color: 0xffaa00, blending: THREE.AdditiveBlending });
+            const sunGlow = new THREE.Sprite(spriteMat);
+            sunGlow.scale.set(8, 8, 1);
+            sunObj.add(sunGlow);
+            solarSystemGroup.add(sunObj);
+
+            // Planets
+            const planetData = [
+                { name: 'Mercury', r: 0.2, dist: 3.5, color: '#aaaaaa', speed: 0.008 },
+                { name: 'Venus',   r: 0.4, dist: 5,   color: '#e3bb76', speed: 0.006 },
+                { name: 'Earth',   r: 0.4, dist: 7,   color: '#2233ff', speed: 0.005 },
+                { name: 'Mars',    r: 0.3, dist: 9,   color: '#ff3300', speed: 0.004 },
+                { name: 'Jupiter', r: 1.2, dist: 13,  color: '#d8ca9d', speed: 0.002 },
+                { name: 'Saturn',  r: 1.0, dist: 17,  color: '#c5ab6e', speed: 0.0015, ring: { inner: 1.2, outer: 2, color: 0xc5ab6e } },
+                { name: 'Uranus',  r: 0.8, dist: 21,  color: '#4fd0e7', speed: 0.001 },
+                { name: 'Neptune', r: 0.8, dist: 24,  color: '#2966ac', speed: 0.0008 }
+            ];
+
+            // Rebuild Menu
+            const planetList = document.getElementById('planet-list');
+            planetList.innerHTML = '';
+            
+            // Add Sun
+            addPlanetToMenu('Sun', '#ffdd00', sunObj, 0, true);
+
+            planetData.forEach((p, index) => {
+                const orbitCurve = new THREE.EllipseCurve(0, 0, p.dist, p.dist, 0, 2 * Math.PI, false, 0);
+                const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitCurve.getPoints(64));
+                const orbitMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 });
+                const orbit = new THREE.Line(orbitGeo, orbitMat);
+                orbit.rotation.x = Math.PI / 2;
+                solarSystemGroup.add(orbit);
+
+                const planetPivot = new THREE.Group();
+                const mesh = new THREE.Mesh(new THREE.SphereGeometry(p.r, 32, 32), new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.7 }));
+                mesh.position.x = p.dist;
+                
+                if (p.ring) {
+                    const ringGeo = new THREE.RingGeometry(p.ring.inner, p.ring.outer, 32);
+                    const ringMat = new THREE.MeshBasicMaterial({ color: p.ring.color, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.rotation.x = Math.PI / 2.2;
+                    mesh.add(ring);
+                }
+
+                planetPivot.add(mesh);
+                solarSystemGroup.add(planetPivot);
+
+                const planetObj = { name: p.name, mesh: mesh, pivot: planetPivot, speed: p.speed, dist: p.dist };
+                planets.push(planetObj);
+                
+                addPlanetToMenu(p.name, p.color, planetObj, index + 1, false);
+            });
+
+            // 1. Inner Main Asteroid Belt (Between Mars and Jupiter)
+            const mainBelt = createAsteroidBelt(10, 12, 2000, 0.05, 0x888888);
+            solarSystemGroup.add(mainBelt);
+            asteroidBelts.push(mainBelt);
+
+            // 2. Kuiper Belt (Beyond Neptune - wide and dense)
+            const kuiperBelt = createAsteroidBelt(26, 45, 5000, 0.08, 0xaaccff);
+            solarSystemGroup.add(kuiperBelt);
+            asteroidBelts.push(kuiperBelt);
+            
+             // 3. Scattered Disk (Even further out)
+            const scatteredBelt = createAsteroidBelt(45, 60, 1500, 0.1, 0xaaaaaa);
+            solarSystemGroup.add(scatteredBelt);
+            asteroidBelts.push(scatteredBelt);
+
+            solarSystemGroup.add(new THREE.AmbientLight(0x404040));
+            scene.add(solarSystemGroup);
+            
+            // Set Camera for Solar view - ZOOMED OUT further
+            camera.position.set(0, 40, 60); 
+            controls.target.set(0, 0, 0);
+            
+            // Allow unlimited zoom
+            controls.minDistance = 0.5; // Very close zoom allowed
+            controls.maxDistance = 200; // Far zoom allowed
+        }
+
+        // --- Planet Menu & Profile Logic ---
+        function addPlanetToMenu(name, color, obj, index, isSun) {
+            const list = document.getElementById('planet-list');
+            const item = document.createElement('div');
+            item.className = 'planet-item';
+            item.style.setProperty('--planet-color', color);
+            item.innerHTML = `<div class="planet-icon-small"></div><span>${name}</span>`;
+            
+            item.onclick = () => {
+                if (isSun) {
+                    togglePlanetMenu();
+                    openProfileSequence();
+                } else {
+                    focusOnObject(obj, index);
+                    togglePlanetMenu();
+                }
+            };
+            list.appendChild(item);
+        }
+
+        function togglePlanetMenu() {
+            const list = document.getElementById('planet-list');
+            isMenuOpen = !isMenuOpen;
+            list.style.display = isMenuOpen ? 'flex' : 'none';
+        }
+
+        function focusOnObject(objOrPlanetStruct, index) {
+            trackedObject = objOrPlanetStruct;
+            controls.minDistance = 0.5; // Ensure we can still zoom in close
+        }
+
+        // --- Profile Transitions Logic ---
+        function openProfileSequence() {
+            currentState = STATE.TRANSITION;
+            trackedObject = null; // Stop tracking so we can animate camera
+            
+            // 1. Zoom Camera into Sun
+            const zoomTarget = new THREE.Vector3(0, 0, 4); // Very close to sun
+            let progress = 0;
+
+            function animateEntry() {
+                progress += 0.02;
+                camera.position.lerp(zoomTarget, progress * 0.1);
+                
+                // 2. Flash White
+                if (progress > 0.4) {
+                    const flashOpacity = (progress - 0.4) * 3;
+                    document.getElementById('warp-flash').style.opacity = Math.min(flashOpacity, 1);
+                }
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateEntry);
+                } else {
+                    // 3. Switch to Profile View
+                    document.getElementById('planet-nav-container').style.display = 'none';
+                    document.getElementById('back-btn').style.display = 'none';
+                    
+                    const overlay = document.getElementById('profile-overlay');
+                    overlay.style.display = 'flex';
+                    
+                    // Small delay to allow CSS display:flex to apply before adding class for opacity trans
+                    setTimeout(() => {
+                        overlay.classList.add('active'); // Fade in + Scale down to 1
+                        document.getElementById('warp-flash').style.opacity = 0; // Remove flash
+                    }, 50);
+
+                    currentState = STATE.PROFILE;
+                }
+            }
+            animateEntry();
+        }
+
+        function exitProfileSequence() {
+            currentState = STATE.TRANSITION;
+            const overlay = document.getElementById('profile-overlay');
+            
+            // 1. Zoom Out Webpage (Shrink away)
+            overlay.classList.remove('active');
+            overlay.classList.add('zoomed-out'); // Scale to 0.1, Opacity 0
+            
+            // 2. Animate 3D Camera Backwards (Zoom out from Sun to full view)
+            // Start from close (where we left off)
+            camera.position.set(0, 0, 5); 
+            controls.target.set(0,0,0);
+            
+            // Reset to the Zoomed Out View
+            const targetPos = new THREE.Vector3(0, 40, 60);
+            let progress = 0;
+
+            function animateExit() {
+                progress += 0.02;
+                camera.position.lerp(targetPos, progress * 0.1);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateExit);
+                } else {
+                    // Cleanup Profile DOM
+                    overlay.style.display = 'none';
+                    overlay.classList.remove('zoomed-out');
+                    
+                    // Show 3D UI
+                    document.getElementById('planet-nav-container').style.display = 'flex';
+                    document.getElementById('back-btn').style.display = 'flex';
+                    
+                    currentState = STATE.SOLAR;
+                    
+                    // Reset limits
+                    controls.minDistance = 0.5;
+                    controls.maxDistance = 200;
+                }
+            }
+            // Start camera move immediately with CSS transition
+            setTimeout(animateExit, 100);
+        }
+
+        document.getElementById('start-exploring-btn').addEventListener('click', exitProfileSequence);
+
+        // --- Interaction Logic ---
+        function selectPreset(type) {
+            document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+            if(event && event.currentTarget) event.currentTarget.classList.add('active');
+            createGalaxy(type);
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            if (currentState === STATE.PROFILE || currentState === STATE.TRANSITION) return;
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            // Check for Sun Hover in Solar System
+            if (currentState === STATE.SOLAR && sunObj) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(sunObj);
+                if (intersects.length > 0) {
+                    document.body.style.cursor = 'pointer';
+                } else {
+                    document.body.style.cursor = 'default';
+                }
+                return;
+            }
+
+            // Check for Galaxy Core Hover
+            if (currentState === STATE.GALAXY) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(coreHitbox);
+                if (intersects.length > 0) {
+                    document.body.style.cursor = 'pointer';
+                    isHoveringCore = true;
+                } else {
+                    document.body.style.cursor = 'default';
+                    isHoveringCore = false;
+                }
+            }
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target.closest('#ui-container') || e.target.closest('button') || e.target.closest('#planet-nav-container')) return;
+            
+            // Interaction: Galaxy -> Solar
+            if (currentState === STATE.GALAXY) {
+                if (isHoveringCore) startTransitionToSolar();
+                else {
+                    const distFromCenter = Math.sqrt(mouse.x * mouse.x + mouse.y * mouse.y);
+                    if (distFromCenter < 0.2) startTransitionToSolar();
+                }
+            }
+            // Interaction: Click Sun -> Profile
+            else if (currentState === STATE.SOLAR) {
+                raycaster.setFromCamera(mouse, camera);
+                // Check Sun hit
+                const intersects = raycaster.intersectObject(sunObj);
+                if (intersects.length > 0) {
+                    openProfileSequence();
+                }
+            }
+        });
+
+        document.getElementById('back-btn').addEventListener('click', startTransitionToGalaxy);
+        document.getElementById('enter-system-btn').addEventListener('click', startTransitionToSolar);
+
+        // --- Transitions ---
+        function startTransitionToSolar() {
+            currentState = STATE.TRANSITION;
+            document.getElementById('ui-container').style.opacity = 0;
+            document.getElementById('ui-container').style.pointerEvents = 'none';
+            document.getElementById('enter-system-btn').style.display = 'none';
+
+            // Target transition to the zoomed out view
+            const targetPos = new THREE.Vector3(0, 40, 60);
+            let progress = 0;
+            
+            function animateZoom() {
+                progress += 0.02;
+                camera.position.lerp(targetPos, progress * 0.1);
+                if (progress > 0.5) {
+                    const flashOpacity = (progress - 0.5) * 4;
+                    document.getElementById('warp-flash').style.opacity = Math.min(flashOpacity, 1);
+                }
+                if (progress < 1) {
+                    requestAnimationFrame(animateZoom);
+                } else {
+                    scene.remove(galaxyPoints);
+                    scene.remove(coreHitbox);
+                    createSolarSystem();
+                    document.getElementById('back-btn').style.display = 'flex';
+                    document.getElementById('planet-nav-container').style.display = 'flex';
+                    currentState = STATE.SOLAR;
+                    setTimeout(() => document.getElementById('warp-flash').style.opacity = 0, 100);
+                }
+            }
+            animateZoom();
+        }
+
+        function startTransitionToGalaxy() {
+            currentState = STATE.TRANSITION;
+            document.getElementById('warp-flash').style.opacity = 1;
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('planet-nav-container').style.display = 'none';
+            document.getElementById('planet-list').style.display = 'none';
+            isMenuOpen = false;
+            trackedObject = null;
+
+            setTimeout(() => {
+                scene.remove(solarSystemGroup);
+                const activeCard = document.querySelector('.preset-card.active');
+                let activeType = 'spiral'; 
+                if (activeCard) {
+                    const match = activeCard.getAttribute('onclick').match(/'([^']+)'/);
+                    if (match) activeType = match[1];
+                }
+                createGalaxy(activeType);
+                currentState = STATE.GALAXY;
+                document.getElementById('ui-container').style.opacity = 1;
+                document.getElementById('ui-container').style.pointerEvents = 'all';
+                document.getElementById('warp-flash').style.opacity = 0;
+                document.getElementById('enter-system-btn').style.display = 'flex';
+            }, 500);
+        }
+
+        // --- Particles for Profile (Canvas 2D) ---
+        const particleCanvas = document.getElementById('particles-canvas');
+        const ctx = particleCanvas.getContext('2d');
+        let particlesArray = [];
+
+        function resizeParticles() {
+            particleCanvas.width = window.innerWidth;
+            particleCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeParticles);
+        resizeParticles();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * particleCanvas.width;
+                this.y = Math.random() * particleCanvas.height;
+                this.size = Math.random() * 2 + 0.1;
+                this.speedX = Math.random() * 0.5 - 0.25;
+                this.speedY = Math.random() * 0.5 - 0.25;
+                const colors = ['rgba(255, 255, 255, ', 'rgba(255, 215, 0, ', 'rgba(255, 140, 0, '];
+                this.colorBase = colors[Math.floor(Math.random() * colors.length)];
+                this.opacity = Math.random() * 0.5 + 0.1;
+            }
+            update() {
+                this.x += this.speedX; this.y += this.speedY;
+                if (this.x > particleCanvas.width) this.x = 0; else if (this.x < 0) this.x = particleCanvas.width;
+                if (this.y > particleCanvas.height) this.y = 0; else if (this.y < 0) this.y = particleCanvas.height;
+            }
+            draw() {
+                ctx.fillStyle = this.colorBase + this.opacity + ')';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        function initParticles() {
+            particlesArray = [];
+            for (let i = 0; i < (particleCanvas.width * particleCanvas.height) / 9000; i++) particlesArray.push(new Particle());
+        }
+        initParticles();
+
+        // --- Main Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. Three.js Render
+            if (currentState !== STATE.PROFILE) {
+                controls.update();
+
+                if (currentState === STATE.GALAXY && galaxyPoints) {
+                    galaxyPoints.rotation.y += 0.001;
+                } 
+                else if (currentState === STATE.SOLAR) {
+                    planets.forEach(p => {
+                        p.pivot.rotation.y += p.speed;
+                        p.mesh.rotation.y += 0.01;
+                    });
+                    
+                    // Rotate all asteroid belts
+                    asteroidBelts.forEach((belt, index) => {
+                         // Different speeds for different belts
+                         const speed = 0.0005 - (index * 0.0001); 
+                         belt.rotation.y += speed;
+                    });
+
+                    if (trackedObject) {
+                        const targetVec = new THREE.Vector3();
+                        if (trackedObject.mesh) trackedObject.mesh.getWorldPosition(targetVec);
+                        else trackedObject.getWorldPosition(targetVec);
+                        controls.target.lerp(targetVec, 0.1);
+                    }
+                }
+                renderer.render(scene, camera);
+            }
+
+            // 2. Profile Particles Render
+            if (currentState === STATE.PROFILE || document.getElementById('profile-overlay').style.display === 'flex') {
+                ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+                for (let i = 0; i < particlesArray.length; i++) {
+                    particlesArray[i].update();
+                    particlesArray[i].draw();
+                }
+            }
+        }
+
+        // Initialize
+        createGalaxy('spiral');
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            resizeParticles();
+            initParticles();
+        });
+
+    </script>
+</body>
+</html>
